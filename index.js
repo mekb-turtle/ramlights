@@ -1,11 +1,13 @@
 const memUsedColour = [ 245, 69, 198 ];
 const memAvailColour = [ 0, 0, 0 ];
 const lightIndexMem = 0;
+const lightCountMem = 10;
 const lightReverseMem = true;
 
 const swapUsedColour = [ 41, 183, 249 ];
 const swapAvailColour = [ 0, 0, 0 ];
 const lightIndexSwap = 1;
+const lightCountSwap = 10;
 const lightReverseSwap = true;
 
 const sdkClient = {
@@ -67,12 +69,14 @@ function run(bin, cmdline) {
 		});
 	});
 }
-async function setLight(client, index, reverse, perc, availColour, usedColour) {
+async function setLight(client, index, count, reverse, perc, availColour, usedColour) {
 	if (index == null) return;
 	const device = await client.getDeviceController(index);
-	let colours = percArr(perc, device.colors.length).map(e => round(lerp(availColour, usedColour, e)));
+	console.log(device.colors.length);
+	let colours = percArr(perc, count);
+	console.log(`Setting ${device.name} (#${index}) to`, colours);
+	colours = colours.map(e => round(lerp(availColour, usedColour, e)));
 	if (reverse) colours = colours.reverse();
-	console.log(`Setting #${index} (${device.name}) to`, colours);
 	await client.updateLeds(index, colour(colours));
 }
 (async()=>{
@@ -87,7 +91,7 @@ async function setLight(client, index, reverse, perc, availColour, usedColour) {
 		}
 		throw err;
 	}
-	await setLight(client, lightIndexMem, lightReverseMem, perc.mem, memAvailColour, memUsedColour);
-	await setLight(client, lightIndexSwap, lightReverseSwap, perc.swap, swapAvailColour, swapUsedColour);
+	await setLight(client, lightIndexMem,  lightCountMem,  lightReverseMem,  perc.mem,  memAvailColour,  memUsedColour);
+	await setLight(client, lightIndexSwap, lightCountSwap, lightReverseSwap, perc.swap, swapAvailColour, swapUsedColour);
 	await client.disconnect();
 })();
