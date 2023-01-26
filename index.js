@@ -10,6 +10,8 @@ const lightIndexSwap = 1;
 const lightCountSwap = 10;
 const lightReverseSwap = true;
 
+const updateInterval = 1000;
+
 const sdkClient = {
 	host: "localhost",
 	port: 6742,
@@ -69,19 +71,19 @@ function run(bin, cmdline) {
 		});
 	});
 }
+let exit = false;
 async function setLight(client, index, count, reverse, perc, availColour, usedColour) {
+	if (exit) return;
 	if (index == null) return;
 	const device = await client.getDeviceController(index);
-	console.log(device.colors.length);
 	let colours = percArr(perc, count);
-	console.log(`Setting ${device.name} (#${index}) to`, colours);
+	//console.log(`Setting ${device.name} (#${index}) to`, colours);
 	colours = colours.map(e => round(lerp(availColour, usedColour, e)));
 	if (reverse) colours = colours.reverse();
+	if (exit) return;
 	await client.updateLeds(index, colour(colours));
 }
 (async()=>{
-	let out = await run("/bin/free", [ ]);
-	let perc = parseFree(out.toString());
 	const client = new OpenRGBClient(sdkClient);
 	try {
 		await client.connect();
@@ -91,7 +93,23 @@ async function setLight(client, index, count, reverse, perc, availColour, usedCo
 		}
 		throw err;
 	}
-	await setLight(client, lightIndexMem,  lightCountMem,  lightReverseMem,  perc.mem,  memAvailColour,  memUsedColour);
-	await setLight(client, lightIndexSwap, lightCountSwap, lightReverseSwap, perc.swap, swapAvailColour, swapUsedColour);
-	await client.disconnect();
+	[ "SIGINT", "SIGQUIT", "exit", "beforeExit" ].forEach(i =>
+		process.on(i, async () => {
+			if (exit) return;
+			exit = true;
+			await client.disconnect();
+		}));
+	let last = performance.now();
+	while (true) {
+		if (exit) return;
+		let out = await run("/bin/free", [ ]);
+		if (exit) return;
+		let perc = parseFree(out.toString());
+		await setLight(client, lightIndexMem,  lightCountMem,  lightReverseMem,  perc.mem,  memAvailColour,  memUsedColour);
+		await setLight(client, lightIndexSwap, lightCountSwap, lightReverseSwap, perc.swap, swapAvailColour, swapUsedColour);
+		let now = performance.now();
+		if (now - last < updateInterval)
+			await new Promise(r => setTimeout(() => r(), updateInterval - (now - last)));
+		last = performance.now();
+	}
 })();
